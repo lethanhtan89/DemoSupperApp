@@ -19,7 +19,7 @@ import { AppCard } from '../../shared/components/AppCard';
 import { AppScreen } from '../../shared/components/AppScreen';
 import { colors } from '../../shared/theme/colors';
 import { spacing } from '../../shared/theme/spacing';
-
+import { getCachedMiniApp } from '../../core/miniapp/MiniAppCacheStore';
 
 const iconMap: Partial<Record<MiniAppManifest['key'], IoniconsIconName>> = {
   wallet: 'wallet-outline',
@@ -34,6 +34,7 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cacheVersion, setCacheVersion] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -68,6 +69,7 @@ export function HomeScreen() {
       setOpeningKey(manifest.key);
 
       const result = await prepareMiniAppBundle(manifest);
+      setCacheVersion(version => version + 1);
 
       if (result.ready) {
         setActiveMiniApp(manifest);
@@ -118,35 +120,42 @@ export function HomeScreen() {
         {loading ? (
           <ActivityIndicator />
         ) : (
-          <View style={styles.grid}>
-            {miniApps.map(item => (
-              <Pressable
-                key={item.key}
-                style={styles.pressable}
-                onPress={() => {
-                  openMiniApp(item).catch(error => {
-                    console.error('Unhandled mini app open error:', error);
-                  });
-                }}
-              >
-                <AppCard style={styles.serviceCard}>
-                  {openingKey === item.key ? (
-                    <ActivityIndicator />
-                  ) : (
-                    <Ionicons
-                      name={iconMap[item.key] ?? 'apps-outline'}
-                      size={28}
-                      color={colors.primary}
-                    />
-                  )}
+          <View style={styles.grid} key={cacheVersion}>
+            {miniApps.map(item => {
+              const cached = getCachedMiniApp(item.key);
 
-                  <View>
-                    <Text style={styles.serviceTitle}>{item.name}</Text>
-                    <Text style={styles.version}>v{item.version}</Text>
-                  </View>
-                </AppCard>
-              </Pressable>
-            ))}
+              return (
+                <Pressable
+                  key={item.key}
+                  style={styles.pressable}
+                  onPress={() => openMiniApp(item)}
+                >
+                  <AppCard style={styles.serviceCard}>
+                    {openingKey === item.key ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Ionicons
+                        name={iconMap[item.key] ?? 'apps-outline'}
+                        size={28}
+                        color={colors.primary}
+                      />
+                    )}
+
+                    <View>
+                      <Text style={styles.serviceTitle}>{item.name}</Text>
+
+                      <Text style={styles.version}>remote v{item.version}</Text>
+
+                      <Text style={styles.cacheStatus}>
+                        {cached
+                          ? `cached v${cached.activeVersion}`
+                          : 'not cached'}
+                      </Text>
+                    </View>
+                  </AppCard>
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -225,5 +234,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     color: colors.danger,
     fontSize: 14,
+  },
+  cacheStatus: {
+    marginTop: 2,
+    fontSize: 11,
+    color: colors.textMuted,
   },
 });

@@ -1,91 +1,96 @@
-import React, {useMemo} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
-import Ionicons from '@react-native-vector-icons/ionicons';
-import {useAuthStore} from '../auth/authStore';
-import {AppScreen} from '../../shared/components/AppScreen';
-import {colors} from '../../shared/theme/colors';
-import {spacing} from '../../shared/theme/spacing';
-import {MiniAppContext, MiniAppEvent} from './MiniAppContext';
-import {MiniAppKey} from './MiniAppManifest';
-import {miniAppManifestMock} from './miniAppManifest.mock';
-import {miniAppRegistry} from './MiniAppRegistry';
+import React, { useMemo } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { AppScreen } from '../../shared/components/AppScreen';
+import { colors } from '../../shared/theme/colors';
+import { MiniAppEvent, MiniAppContext } from './MiniAppContext';
+import { MiniAppKey } from './MiniAppManifest';
+import { miniAppRegistry } from './MiniAppRegistry';
+import { rollbackMiniApp } from './MiniAppCacheStore';
+import { AppButton } from '../../shared/components/AppButton';
 
 type Props = {
   miniAppKey: MiniAppKey;
   onClose: () => void;
 };
 
-export function MiniAppHostScreen({miniAppKey, onClose}: Props) {
-  const token = useAuthStore(state => state.token);
-  const manifest = miniAppManifestMock.find(item => item.key === miniAppKey);
-  const MiniApp = miniAppRegistry[miniAppKey];
+export function MiniAppHostScreen({ miniAppKey, onClose }: Props) {
+  const MiniAppComponent = miniAppRegistry[miniAppKey];
+
+  const handleEvent = (event: MiniAppEvent) => {
+    switch (event.type) {
+      case 'miniapp.close':
+        onClose();
+        break;
+
+      case 'payment.success':
+        Alert.alert(
+          'Payment success',
+          `Transaction: ${event.payload.transactionId}\nAmount: ${event.payload.amount}`,
+        );
+        break;
+    }
+  };
 
   const context = useMemo<MiniAppContext>(
     () => ({
-      userId: 'demo-user',
-      accessToken: token ?? '',
+      userId: 'user-demo-001',
+      accessToken: 'fake-access-token',
       language: 'vi',
+
       close: onClose,
-      navigate: route => {
-        console.log('Mini app navigate:', route);
+
+      navigate: (route, params) => {
+        console.log('Mini app navigate:', route, params);
       },
-      emitEvent: (event: MiniAppEvent) => {
-        console.log('Mini app event:', event);
-      },
-      callApi: async () => {
-        throw new Error('Mini app API client is not configured yet.');
+
+      emitEvent: handleEvent,
+
+      callApi: async <T,>(path: string, body?: unknown): Promise<T> => {
+        console.log('Mini app callApi:', path, body);
+
+        return {
+          success: true,
+        } as T;
       },
     }),
-    [onClose, token],
+    [onClose],
   );
 
-  if (!manifest?.enabled || !MiniApp) {
+  if (!MiniAppComponent) {
     return (
       <AppScreen>
-        <View style={styles.header}>
-          <Pressable onPress={onClose} style={styles.iconButton}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </Pressable>
-        </View>
-        <Text style={styles.title}>Mini app unavailable</Text>
+        <Text style={styles.error}>Mini app not found</Text>
       </AppScreen>
     );
   }
 
+  function handleRollback() {
+    const success = rollbackMiniApp(miniAppKey);
+    if (success) {
+      Alert.alert('Rollback success', `Rolled back ${miniAppKey}`);
+      onClose();
+    } else {
+      Alert.alert('Rollback failed', 'No previous version found');
+    }
+  }
+
   return (
     <AppScreen>
-      <View style={styles.header}>
-        <Text style={styles.title}>{manifest.name}</Text>
-        <Pressable onPress={onClose} style={styles.iconButton}>
-          <Ionicons name="close" size={22} color={colors.text} />
-        </Pressable>
+      <View style={styles.container}>
+        <AppButton title="Rollback mini app" onPress={handleRollback} />
+        <MiniAppComponent context={context} />
       </View>
-
-      <MiniApp context={context} />
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    marginBottom: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  container: {
+    flex: 1,
+    gap: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+  error: {
+    color: colors.danger,
+    fontSize: 16,
   },
 });
