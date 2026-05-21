@@ -5,7 +5,10 @@ export type MiniAppManifest = {
   name: string;
   version: string;
   enabled: boolean;
+
   minHostVersion: string;
+  runtimeVersion: string;
+
   entry: string;
   bundleUrl?: string;
   checksum?: string;

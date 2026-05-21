@@ -1,40 +1,91 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import Ionicons, {
   IoniconsIconName,
 } from '@react-native-vector-icons/ionicons';
+import { prepareMiniAppBundle } from '../../core/miniapp/MiniAppBundleManager';
 import { MiniAppHostScreen } from '../../core/miniapp/MiniAppHostScreen';
-import { MiniAppKey } from '../../core/miniapp/MiniAppManifest';
+import { MiniAppManifest } from '../../core/miniapp/MiniAppManifest';
+import { fetchMiniAppManifests } from '../../core/miniapp/MiniAppManifestService';
 import { AppCard } from '../../shared/components/AppCard';
 import { AppScreen } from '../../shared/components/AppScreen';
 import { colors } from '../../shared/theme/colors';
 import { spacing } from '../../shared/theme/spacing';
 
-const services: Array<{
-  title: string;
-  icon: IoniconsIconName;
-  miniAppKey: MiniAppKey;
-}> = [
-  {
-    title: 'Wallet',
-    icon: 'wallet-outline',
-    miniAppKey: 'wallet',
-  },
-  {
-    title: 'Booking',
-    icon: 'calendar-outline',
-    miniAppKey: 'booking',
-  },
-];
+
+const iconMap: Partial<Record<MiniAppManifest['key'], IoniconsIconName>> = {
+  wallet: 'wallet-outline',
+  booking: 'calendar-outline',
+};
 
 export function HomeScreen() {
-  const [activeMiniApp, setActiveMiniApp] = useState<MiniAppKey | null>(null);
+  const [miniApps, setMiniApps] = useState<MiniAppManifest[]>([]);
+  const [activeMiniApp, setActiveMiniApp] = useState<MiniAppManifest | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchMiniAppManifests()
+      .then(manifests => {
+        if (isMounted) {
+          setMiniApps(manifests);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to fetch mini app manifests:', error);
+
+        if (isMounted) {
+          setErrorMessage('Cannot load mini apps.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function openMiniApp(manifest: MiniAppManifest) {
+    try {
+      setErrorMessage(null);
+      setOpeningKey(manifest.key);
+
+      const result = await prepareMiniAppBundle(manifest);
+
+      if (result.ready) {
+        setActiveMiniApp(manifest);
+      } else {
+        setErrorMessage(`${manifest.name} is not ready yet.`);
+      }
+    } catch (error) {
+      console.error('Failed to open mini app:', error);
+      setErrorMessage(`Cannot open ${manifest.name}.`);
+    } finally {
+      setOpeningKey(null);
+    }
+  }
 
   if (activeMiniApp) {
     return (
       <MiniAppHostScreen
-        miniAppKey={activeMiniApp}
+        miniAppKey={activeMiniApp.key}
         onClose={() => setActiveMiniApp(null)}
       />
     );
@@ -60,21 +111,44 @@ export function HomeScreen() {
         </AppCard>
 
         <Text style={styles.sectionTitle}>Mini Apps</Text>
+        {errorMessage ? (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        ) : null}
 
-        <View style={styles.grid}>
-          {services.map(item => (
-            <Pressable
-              key={item.title}
-              style={styles.pressable}
-              onPress={() => setActiveMiniApp(item.miniAppKey)}
-            >
-              <AppCard style={styles.serviceCard}>
-                <Ionicons name={item.icon} size={28} color={colors.primary} />
-                <Text style={styles.serviceTitle}>{item.title}</Text>
-              </AppCard>
-            </Pressable>
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator />
+        ) : (
+          <View style={styles.grid}>
+            {miniApps.map(item => (
+              <Pressable
+                key={item.key}
+                style={styles.pressable}
+                onPress={() => {
+                  openMiniApp(item).catch(error => {
+                    console.error('Unhandled mini app open error:', error);
+                  });
+                }}
+              >
+                <AppCard style={styles.serviceCard}>
+                  {openingKey === item.key ? (
+                    <ActivityIndicator />
+                  ) : (
+                    <Ionicons
+                      name={iconMap[item.key] ?? 'apps-outline'}
+                      size={28}
+                      color={colors.primary}
+                    />
+                  )}
+
+                  <View>
+                    <Text style={styles.serviceTitle}>{item.name}</Text>
+                    <Text style={styles.version}>v{item.version}</Text>
+                  </View>
+                </AppCard>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </AppScreen>
   );
@@ -141,5 +215,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: colors.text,
+  },
+  version: {
+    marginTop: 4,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  errorText: {
+    marginBottom: spacing.md,
+    color: colors.danger,
+    fontSize: 14,
   },
 });

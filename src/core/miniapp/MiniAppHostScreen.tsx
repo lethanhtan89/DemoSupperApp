@@ -7,7 +7,7 @@ import {colors} from '../../shared/theme/colors';
 import {spacing} from '../../shared/theme/spacing';
 import {MiniAppContext, MiniAppEvent} from './MiniAppContext';
 import {MiniAppKey} from './MiniAppManifest';
-import {miniAppManifests} from './miniAppManifest.mock';
+import {miniAppManifestMock} from './miniAppManifest.mock';
 import {miniAppRegistry} from './MiniAppRegistry';
 
 type Props = {
@@ -17,7 +17,7 @@ type Props = {
 
 export function MiniAppHostScreen({miniAppKey, onClose}: Props) {
   const token = useAuthStore(state => state.token);
-  const manifest = miniAppManifests.find(item => item.key === miniAppKey);
+  const manifest = miniAppManifestMock.find(item => item.key === miniAppKey);
   const MiniApp = miniAppRegistry[miniAppKey];
 
   const context = useMemo<MiniAppContext>(
