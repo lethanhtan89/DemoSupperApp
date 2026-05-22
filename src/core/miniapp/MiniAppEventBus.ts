@@ -1,23 +1,23 @@
 import { MiniAppEvent } from './MiniAppEvent';
 
-type MiniAppEventListener = (event: MiniAppEvent) => void;
+type Listener = (event: MiniAppEvent) => void;
 
-class MiniAppEventBus {
-  private listeners = new Set<MiniAppEventListener>();
+const listeners = new Set<Listener>();
 
-  subscribe(listener: MiniAppEventListener) {
-    this.listeners.add(listener);
+export const miniAppEventBus = {
+  subscribe(listener: Listener) {
+    listeners.add(listener);
 
     return () => {
-      this.listeners.delete(listener);
+      listeners.delete(listener);
     };
-  }
+  },
 
   emit(event: MiniAppEvent) {
-    this.listeners.forEach(listener => {
+    console.log('[MiniAppEventBus]', event);
+
+    listeners.forEach(listener => {
       listener(event);
     });
-  }
-}
-
-export const miniAppEventBus = new MiniAppEventBus();
+  },
+};

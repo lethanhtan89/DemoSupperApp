@@ -39,6 +39,7 @@ function WalletScreen({ context }: Props) {
           onPress={() => {
             context.emitEvent({
               type: 'payment.success',
+              source: 'wallet',
               payload: {
                 transactionId: 'TXN_123456',
                 amount: 500000,

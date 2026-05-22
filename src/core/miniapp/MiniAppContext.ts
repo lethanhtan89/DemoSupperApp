@@ -1,24 +1,6 @@
 import { HostApiRequest } from '../../api/HostApiGateway';
+import { MiniAppEvent } from './MiniAppEvent';
 import { MiniAppPermission } from './MiniAppManifest';
-
-export type MiniAppEvent =
-  | { type: 'miniapp.ready' }
-  | { type: 'miniapp.close' }
-  | {
-      type: 'payment.success';
-      payload: {
-        transactionId: string;
-        amount: number;
-      };
-    }
-  | { type: 'auth.expired' }
-  | {
-      type: 'analytics.track';
-      payload: {
-        name: string;
-        params?: Record<string, unknown>;
-      };
-    };
 
 export type MiniAppContext = {
   userId: string;
