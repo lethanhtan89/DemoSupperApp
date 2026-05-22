@@ -1,23 +1,29 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../shared/components/AppScreen';
 import { colors } from '../../shared/theme/colors';
 import { MiniAppEvent, MiniAppContext } from './MiniAppContext';
-import { MiniAppKey } from './MiniAppManifest';
 import { miniAppRegistry } from './MiniAppRegistry';
 import { rollbackMiniApp } from './MiniAppCacheStore';
 import { AppButton } from '../../shared/components/AppButton';
+import { MiniAppManifest } from './MiniAppManifest';
+import { hostApiGateway } from '../../api/HostApiGateway';
+import { requestMiniAppPermission } from './MiniAppPermissionManager';
 
 type Props = {
-  miniAppKey: MiniAppKey;
+  manifest: MiniAppManifest;
   onClose: () => void;
 };
 
-export function MiniAppHostScreen({ miniAppKey, onClose }: Props) {
-  const MiniAppComponent = miniAppRegistry[miniAppKey];
+export function MiniAppHostScreen({ manifest, onClose }: Props) {
+  const miniAppModule = miniAppRegistry[manifest.key];
 
   const handleEvent = (event: MiniAppEvent) => {
     switch (event.type) {
+      case 'miniapp.ready':
+        console.log('[Host] mini app ready', manifest.key);
+        break;
+
       case 'miniapp.close':
         onClose();
         break;
@@ -27,6 +33,14 @@ export function MiniAppHostScreen({ miniAppKey, onClose }: Props) {
           'Payment success',
           `Transaction: ${event.payload.transactionId}\nAmount: ${event.payload.amount}`,
         );
+        break;
+
+      case 'auth.expired':
+        console.log('Session is expired, please re-login');
+        break;
+
+      case 'analytics.track':
+        console.log('[Analytics]', event.payload.name, event.payload.params);
         break;
     }
   };
@@ -45,29 +59,35 @@ export function MiniAppHostScreen({ miniAppKey, onClose }: Props) {
 
       emitEvent: handleEvent,
 
-      callApi: async <T,>(path: string, body?: unknown): Promise<T> => {
-        console.log('Mini app callApi:', path, body);
+      requestPermission: requestMiniAppPermission,
 
-        return {
-          success: true,
-        } as T;
-      },
+      callApi: hostApiGateway,
     }),
     [onClose],
   );
 
-  if (!MiniAppComponent) {
+  useEffect(() => {
+    miniAppModule.bootstrap?.(context);
+    context.emitEvent({
+      type: 'miniapp.ready',
+    });
+    return () => {
+      miniAppModule.destroy?.();
+    };
+  }, [context, miniAppModule]);
+
+  if (!miniAppModule) {
     return (
       <AppScreen>
-        <Text style={styles.error}>Mini app not found</Text>
+        <Text style={styles.error}>Mini app not found: {manifest.key}</Text>
       </AppScreen>
     );
   }
 
   function handleRollback() {
-    const success = rollbackMiniApp(miniAppKey);
+    const success = rollbackMiniApp(manifest.key);
     if (success) {
-      Alert.alert('Rollback success', `Rolled back ${miniAppKey}`);
+      Alert.alert('Rollback success', `Rolled back ${manifest.key}`);
       onClose();
     } else {
       Alert.alert('Rollback failed', 'No previous version found');
@@ -78,7 +98,7 @@ export function MiniAppHostScreen({ miniAppKey, onClose }: Props) {
     <AppScreen>
       <View style={styles.container}>
         <AppButton title="Rollback mini app" onPress={handleRollback} />
-        <MiniAppComponent context={context} />
+        {miniAppModule.render({ context })}
       </View>
     </AppScreen>
   );

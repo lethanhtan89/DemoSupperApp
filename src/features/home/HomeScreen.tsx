@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import { AppScreen } from '../../shared/components/AppScreen';
 import { colors } from '../../shared/theme/colors';
 import { spacing } from '../../shared/theme/spacing';
 import { getCachedMiniApp } from '../../core/miniapp/MiniAppCacheStore';
+import { canGrantMiniAppPermissions } from '../../core/miniapp/MiniAppPermissionManager';
 
 const iconMap: Partial<Record<MiniAppManifest['key'], IoniconsIconName>> = {
   wallet: 'wallet-outline',
@@ -68,6 +70,16 @@ export function HomeScreen() {
       setErrorMessage(null);
       setOpeningKey(manifest.key);
 
+      const permissionOk = canGrantMiniAppPermissions(manifest);
+
+      if (!permissionOk) {
+        Alert.alert(
+          'Permission denied',
+          `${manifest.name} requires unsupported permissions`,
+        );
+        return;
+      }
+
       const result = await prepareMiniAppBundle(manifest);
       setCacheVersion(version => version + 1);
 
@@ -87,7 +99,7 @@ export function HomeScreen() {
   if (activeMiniApp) {
     return (
       <MiniAppHostScreen
-        miniAppKey={activeMiniApp.key}
+        manifest={activeMiniApp}
         onClose={() => setActiveMiniApp(null)}
       />
     );

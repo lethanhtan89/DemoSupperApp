@@ -1,5 +1,13 @@
 export type MiniAppKey = 'wallet' | 'booking';
 
+export type MiniAppPermission =
+  | 'camera'
+  | 'location'
+  | 'payment'
+  | 'user.profile.read'
+  | 'wallet.balance.read'
+  | 'booking.hotel.read';
+
 export type MiniAppManifest = {
   key: MiniAppKey;
   name: string;
@@ -12,4 +20,6 @@ export type MiniAppManifest = {
   entry: string;
   bundleUrl?: string;
   checksum?: string;
+
+  permissions: MiniAppPermission[];
 };

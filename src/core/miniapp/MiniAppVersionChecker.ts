@@ -1,37 +1,26 @@
-import {MiniAppManifest} from './MiniAppManifest';
+import { appConfig } from '../config/appConfig';
+import { MiniAppManifest } from './MiniAppManifest';
 
-const HOST_VERSION = '1.0.0';
-const RUNTIME_VERSION = '1.0.0';
+function compareVersion(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  const length = Math.max(pa.length, pb.length);
 
-function parseVersion(version: string) {
-  return version.split('.').map(part => Number(part) || 0);
-}
-
-function isVersionAtLeast(current: string, minimum: string) {
-  const currentParts = parseVersion(current);
-  const minimumParts = parseVersion(minimum);
-  const length = Math.max(currentParts.length, minimumParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const currentPart = currentParts[index] ?? 0;
-    const minimumPart = minimumParts[index] ?? 0;
-
-    if (currentPart > minimumPart) {
-      return true;
-    }
-
-    if (currentPart < minimumPart) {
-      return false;
-    }
+  for (let i = 0; i < length; i++) {
+    const na = pa[i] ?? 0;
+    const nb = pb[i] ?? 0;
+    if (na > nb) return 1;
+    if (na < nb) return 1;
   }
 
-  return true;
+  return 0;
 }
 
-export function canRunMiniApp(manifest: MiniAppManifest) {
-  return (
-    manifest.enabled &&
-    isVersionAtLeast(HOST_VERSION, manifest.minHostVersion) &&
-    isVersionAtLeast(RUNTIME_VERSION, manifest.runtimeVersion)
-  );
+export function canRunMiniApp(manifest: MiniAppManifest): boolean {
+  if (!manifest.enabled) return false;
+  const hostVersionOk =
+    compareVersion(appConfig.hostVersion, manifest.runtimeVersion) >= 0;
+  const runtimeOk = appConfig.runtimeVersion == manifest.runtimeVersion;
+
+  return hostVersionOk && runtimeOk;
 }

@@ -1,4 +1,4 @@
-import { MiniAppManifest } from './MiniAppManifest';
+import {MiniAppManifest} from './MiniAppManifest';
 
 export const miniAppManifestMock: MiniAppManifest[] = [
   {
@@ -11,6 +11,7 @@ export const miniAppManifestMock: MiniAppManifest[] = [
     entry: 'WalletMiniApp',
     bundleUrl: 'https://cdn.demo.com/wallet/1.0.0/remoteEntry.js',
     checksum: 'sha256-demo-wallet',
+    permissions: ['payment', 'wallet.balance.read', 'user.profile.read'],
   },
   {
     key: 'booking',
@@ -22,5 +23,6 @@ export const miniAppManifestMock: MiniAppManifest[] = [
     entry: 'BookingMiniApp',
     bundleUrl: 'https://cdn.demo.com/booking/1.0.0/remoteEntry.js',
     checksum: 'sha256-demo-booking',
+    permissions: ['booking.hotel.read', 'location'],
   },
 ];
