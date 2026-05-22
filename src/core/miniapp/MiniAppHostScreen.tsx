@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../shared/components/AppScreen';
 import { colors } from '../../shared/theme/colors';
-import { MiniAppEvent, MiniAppContext } from './MiniAppContext';
-import { miniAppRegistry } from './MiniAppRegistry';
-import { rollbackMiniApp } from './MiniAppCacheStore';
-import { AppButton } from '../../shared/components/AppButton';
+import { MiniAppContext } from './MiniAppContext';
 import { MiniAppManifest } from './MiniAppManifest';
 import { hostApiGateway } from '../../api/HostApiGateway';
 import { requestMiniAppPermission } from './MiniAppPermissionManager';
+import { miniAppEventBus } from './MiniAppEventBus';
+import { MiniAppModule } from './MiniAppModule';
+import { loadMiniAppModule } from './MiniAppLoader';
 
 type Props = {
   manifest: MiniAppManifest;
@@ -16,34 +16,54 @@ type Props = {
 };
 
 export function MiniAppHostScreen({ manifest, onClose }: Props) {
-  const miniAppModule = miniAppRegistry[manifest.key];
+  const [miniAppModule, setMiniAppModule] = useState<MiniAppModule | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleEvent = (event: MiniAppEvent) => {
-    switch (event.type) {
-      case 'miniapp.ready':
-        console.log('[Host] mini app ready', manifest.key);
-        break;
+  const handleEvent = useCallback(
+    (event: MiniAppContext['emitEvent'] extends (value: infer Event) => void
+      ? Event
+      : never) => {
+      const hostEvent = {
+        ...event,
+        source: manifest.key,
+      };
 
-      case 'miniapp.close':
-        onClose();
-        break;
+      miniAppEventBus.emit(hostEvent);
 
-      case 'payment.success':
-        Alert.alert(
-          'Payment success',
-          `Transaction: ${event.payload.transactionId}\nAmount: ${event.payload.amount}`,
-        );
-        break;
+      switch (hostEvent.type) {
+        case 'miniapp.ready':
+          console.log('[Host] mini app ready', hostEvent.source);
+          break;
 
-      case 'auth.expired':
-        console.log('Session is expired, please re-login');
-        break;
+        case 'miniapp.close':
+          onClose();
+          break;
 
-      case 'analytics.track':
-        console.log('[Analytics]', event.payload.name, event.payload.params);
-        break;
-    }
-  };
+        case 'payment.success':
+          Alert.alert(
+            'Payment success',
+            `Transaction: ${hostEvent.payload.transactionId}\nAmount: ${hostEvent.payload.amount}`,
+          );
+          break;
+
+        case 'auth.expired':
+          console.log('Session is expired, please re-login');
+          break;
+
+        case 'analytics.track':
+          console.log(
+            '[Analytics]',
+            hostEvent.payload.name,
+            hostEvent.payload.params,
+          );
+          break;
+      }
+    },
+    [manifest.key, onClose],
+  );
 
   const context = useMemo<MiniAppContext>(
     () => ({
@@ -58,48 +78,81 @@ export function MiniAppHostScreen({ manifest, onClose }: Props) {
       },
 
       emitEvent: handleEvent,
-
       requestPermission: requestMiniAppPermission,
-
       callApi: hostApiGateway,
     }),
-    [onClose],
+    [onClose, handleEvent],
   );
 
   useEffect(() => {
+    let mounted = true;
+
+    setLoading(true);
+    setMiniAppModule(null);
+    setErrorMessage(null);
+
+    loadMiniAppModule(manifest)
+      .then(module => {
+        if (mounted) {
+          setMiniAppModule(module);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load mini app module:', error);
+
+        if (mounted) {
+          setErrorMessage(`Cannot load mini app: ${manifest.name}`);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [manifest]);
+
+  useEffect(() => {
+    if (!miniAppModule) {
+      return;
+    }
+
     miniAppModule.bootstrap?.(context);
+
     context.emitEvent({
       type: 'miniapp.ready',
+      source: manifest.key,
     });
+
     return () => {
       miniAppModule.destroy?.();
     };
-  }, [context, miniAppModule]);
+  }, [miniAppModule, context, manifest.key]);
 
-  if (!miniAppModule) {
+  if (loading) {
     return (
       <AppScreen>
-        <Text style={styles.error}>Mini app not found: {manifest.key}</Text>
+        <Text>Loading mini app...</Text>
       </AppScreen>
     );
   }
 
-  function handleRollback() {
-    const success = rollbackMiniApp(manifest.key);
-    if (success) {
-      Alert.alert('Rollback success', `Rolled back ${manifest.key}`);
-      onClose();
-    } else {
-      Alert.alert('Rollback failed', 'No previous version found');
-    }
+  if (errorMessage || !miniAppModule) {
+    return (
+      <AppScreen>
+        <Text style={styles.error}>
+          {errorMessage ?? `Mini app not found: ${manifest.key}`}
+        </Text>
+      </AppScreen>
+    );
   }
 
   return (
     <AppScreen>
-      <View style={styles.container}>
-        <AppButton title="Rollback mini app" onPress={handleRollback} />
-        {miniAppModule.render({ context })}
-      </View>
+      <View style={styles.container}>{miniAppModule.render({ context })}</View>
     </AppScreen>
   );
 }
