@@ -18,8 +18,12 @@ export type MiniAppManifest = {
   runtimeVersion: string;
 
   entry: string;
+  remoteName: string;
+  exposedModule: string;
   bundleUrl?: string;
+
   checksum?: string;
+  signature?: string;
 
   permissions: MiniAppPermission[];
 };

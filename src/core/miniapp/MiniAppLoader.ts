@@ -1,21 +1,25 @@
 import { MiniAppManifest } from './MiniAppManifest';
 import { MiniAppModule } from './MiniAppModule';
 import { miniAppRegistry } from './MiniAppRegistry';
+import { loadRemoteMiniAppModule } from './RemoteMiniAppLoader';
+
+const ENABLE_REMOTE_MINI_APP = false;
 
 export async function loadMiniAppModule(
   manifest: MiniAppManifest,
 ): Promise<MiniAppModule | null> {
-  const module = miniAppRegistry[manifest.key];
 
-  if (!module) {
-    return null;
+  if (ENABLE_REMOTE_MINI_APP) {
+    return loadRemoteMiniAppModule(manifest);
   }
 
-  if (module.version !== manifest.version) {
-    console.warn(
-      `[MiniAppLoader] version mismatch for ${manifest.key}: manifest=${manifest.version}, module=${module.version}`,
-    );
-  }
+  return loadStaticMiniAppModule(manifest);
+}
 
-  return module;
+async function loadStaticMiniAppModule(
+  manifest: MiniAppManifest,
+): Promise<MiniAppModule | null> {
+  console.log('[MiniAppLoader] static load:', manifest.key);
+
+  return miniAppRegistry[manifest.key] ?? null;
 }
